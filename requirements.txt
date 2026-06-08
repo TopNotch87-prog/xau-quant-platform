@@ -1,0 +1,11 @@
+numpy
+pandas
+matplotlib
+scipy
+scikit-learn
+statsmodels
+yfinance
+backtesting
+plotly
+pyfolio
+quantstats
