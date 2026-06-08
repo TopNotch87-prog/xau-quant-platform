@@ -1,22 +1,44 @@
-import matplotlib.pyplot as plt
+import pandas as pd
+from pathlib import Path
 
-class ReportingAgent:
+class TradeLogger:
 
-    def create_report(
+    FILE = "data/trades.csv"
+
+    def log(
         self,
-        equity_curve
+        timestamp,
+        direction,
+        entry,
+        exit_price,
+        pnl
     ):
 
-        plt.figure(figsize=(12,6))
+        row = pd.DataFrame([{
 
-        equity_curve.plot()
+            "timestamp": timestamp,
 
-        plt.title(
-            "XAUUSD Equity Curve"
-        )
+            "direction": direction,
 
-        plt.grid()
+            "entry": entry,
 
-        plt.savefig(
-            "data/reports/equity_curve.png"
-        )
+            "exit": exit_price,
+
+            "pnl": pnl
+        }])
+
+        if Path(self.FILE).exists():
+
+            row.to_csv(
+                self.FILE,
+                mode="a",
+                header=False,
+                index=False
+            )
+
+        else:
+
+            row.to_csv(
+                self.FILE,
+                index=False
+            )
