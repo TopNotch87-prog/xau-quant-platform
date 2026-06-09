@@ -3,19 +3,29 @@ Strategy Agent
 Selects appropriate trading strategy based on market regime
 """
 
+
 class StrategyAgent:
 
     def generate_signals(self, data, regime):
-        """Generate trading signals based on data and regime"""
+        """
+        Generate signals based on detected regime.
+        """
+
         mapping = {
             "TREND_UP": "trend_following",
             "TREND_DOWN": "trend_following",
             "RANGE": "mean_reversion",
-            "HIGH_VOL": "breakout"
+            "HIGH_VOL": "breakout",
+            "UNKNOWN": "trend_following"
         }
-        
-        # Return signals based on regime
+
+        selected_strategy = mapping.get(
+            str(regime),
+            "trend_following"
+        )
+
         return {
-            'strategy': mapping.get(regime, 'trend_following'),
-            'data': data
+            "strategy": selected_strategy,
+            "regime": regime,
+            "data": data
         }
