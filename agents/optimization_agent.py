@@ -1,34 +1,37 @@
-"""
-Optimization Agent
-Performs walk-forward optimization of strategy parameters
-"""
-from itertools import product
+def test_strategy(
+    self,
+    data,
+    fast,
+    slow
+):
 
-class OptimizationAgent:
+    close = data["Close"]
 
-    def walk_forward_optimization(self, data, strategy_agent, window_size=252):
-        """Optimize strategy parameters using walk-forward method"""
-        best_sharpe = -999
-        best_params = None
+    fast_ma = close.rolling(fast).mean()
+    slow_ma = close.rolling(slow).mean()
 
-        for fast, slow in product(
-                range(10, 50, 5),
-                range(50, 200, 10)
-        ):
+    signal = (
+        fast_ma > slow_ma
+    ).astype(int)
 
-            sharpe = self.test_strategy(
-                data,
-                fast,
-                slow
-            )
+    returns = close.pct_change()
 
-            if sharpe > best_sharpe:
-                best_sharpe = sharpe
-                best_params = (fast, slow)
+    strategy_returns = (
+        signal.shift(1)
+        * returns
+    )
 
-        return best_params
-    
-    def test_strategy(self, data, fast, slow):
-        """Test strategy with given parameters"""
-        # Placeholder for strategy testing
-        return 0.5
+    strategy_returns = (
+        strategy_returns
+        .dropna()
+    )
+
+    if len(strategy_returns) < 30:
+        return -999
+
+    sharpe = (
+        strategy_returns.mean()
+        / strategy_returns.std()
+    ) * np.sqrt(252)
+
+    return sharpe
