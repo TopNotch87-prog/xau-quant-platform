@@ -1,16 +1,34 @@
-"""
-Monte Carlo Agent
-Generates price path simulations for risk analysis
-"""
 import numpy as np
+
 
 class MonteCarloAgent:
 
-    def generate_price_paths(self, data, num_simulations=1000, horizon=252):
-        """Generate Monte Carlo price paths"""
-        returns = np.random.normal(0, 0.01, (num_simulations, horizon))
+    def generate_price_paths(
+        self,
+        data,
+        num_simulations=1000,
+        horizon=252
+    ):
+
+        returns = (
+            data["Close"]
+            .pct_change()
+            .dropna()
+        )
+
+        mu = returns.mean()
+        sigma = returns.std()
+
+        paths = np.random.normal(
+            mu,
+            sigma,
+            (num_simulations, horizon)
+        )
+
         return {
-            'simulations': num_simulations,
-            'horizon': horizon,
-            'paths': returns
+            "simulations": num_simulations,
+            "horizon": horizon,
+            "mean_return": float(mu),
+            "volatility": float(sigma),
+            "paths": paths
         }
