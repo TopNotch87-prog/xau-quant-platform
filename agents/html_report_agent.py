@@ -26,7 +26,7 @@ class HtmlReportAgent:
 
         data        = report["results"]["data"]
         signals     = report["results"]["signals"]
-        risk        = report["risk_metrics"]
+        risk        = report["results"]["risk_metrics"]
         opt_params  = report["results"]["optimized_params"]
         mc          = report["results"]["mc_results"]
 
