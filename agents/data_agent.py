@@ -8,7 +8,7 @@ class DataAgent:
         """Initialize the data collection agent"""
         pass
     
-    def fetch_market_data(self, symbol: str, start_date: str, end_date: str):
+    def fetch_market_data(self, symbol: str, start_date: str = None, end_date: str = None):
         """Fetch historical market data"""
         pass
     
