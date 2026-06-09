@@ -15,6 +15,12 @@ from agents.reporting_agent import ReportingAgent
 class MasterController:
 
     def __init__(self, config):
+        """
+        Initialize master controller with all agents
+
+        Args:
+            config: Configuration dictionary
+        """
 
         self.config = config
 
@@ -27,30 +33,57 @@ class MasterController:
         self.reporting_agent = ReportingAgent()
 
     def run_backtest(self):
+        """
+        Execute complete backtest workflow
+        """
 
         print("Starting backtest workflow...")
 
+        # --------------------------------------------------
+        # Step 1: Fetch Data
+        # --------------------------------------------------
         print("Step 1: Fetching market data...")
+
         data = self.data_agent.fetch_market_data(
             symbol=self.config.get("symbol", "XAUUSD"),
             start_date=self.config.get("start_date"),
             end_date=self.config.get("end_date")
         )
 
+        if data is None or len(data) == 0:
+            raise ValueError("No market data returned")
+
+        print(f"Rows downloaded: {len(data)}")
+
+        # --------------------------------------------------
+        # Step 2: Detect Market Regime
+        # --------------------------------------------------
         print("Step 2: Detecting market regime...")
+
         data = self.regime_agent.detect_regime(data)
 
         current_regime = data["regime"].iloc[-1]
 
         print(f"Current Regime: {current_regime}")
 
+        # --------------------------------------------------
+        # Step 3: Generate Signals
+        # --------------------------------------------------
         print("Step 3: Generating trading signals...")
+
         signals = self.strategy_agent.generate_signals(
             data,
             current_regime
         )
 
+        print("\n================ SIGNALS ================")
+        print(signals)
+
+        # --------------------------------------------------
+        # Step 4: Walk Forward Optimization
+        # --------------------------------------------------
         print("Step 4: Optimizing strategy parameters...")
+
         optimized_params = (
             self.optimization_agent.walk_forward_optimization(
                 data,
@@ -59,20 +92,46 @@ class MasterController:
             )
         )
 
+        print("\n========== OPTIMIZED PARAMETERS ==========")
+        print(optimized_params)
+
+        # --------------------------------------------------
+        # Step 5: Risk Assessment
+        # --------------------------------------------------
         print("Step 5: Assessing portfolio risk...")
+
         risk_metrics = self.risk_agent.assess_portfolio_risk(
             signals,
             data
         )
 
+        print("\n============= RISK METRICS =============")
+        print(risk_metrics)
+
+        # --------------------------------------------------
+        # Step 6: Monte Carlo Simulation
+        # --------------------------------------------------
         print("Step 6: Running Monte Carlo simulations...")
+
         mc_results = self.montecarlo_agent.generate_price_paths(
             data,
             num_simulations=1000,
             horizon=252
         )
 
+        print("\n=========== MONTE CARLO TYPE ===========")
+        print(type(mc_results))
+
+        try:
+            print(f"Monte Carlo paths: {len(mc_results)}")
+        except Exception:
+            pass
+
+        # --------------------------------------------------
+        # Step 7: Reporting
+        # --------------------------------------------------
         print("Step 7: Generating report...")
+
         report = self.reporting_agent.generate_backtest_report({
             "data": data,
             "signals": signals,
@@ -81,14 +140,25 @@ class MasterController:
             "mc_results": mc_results
         })
 
-        print("Backtest workflow completed!")
+        print("\n================ REPORT ================")
+        print(report)
+
+        print("\nBacktest workflow completed!")
 
         return report
 
     def run_optimization(self):
+        """
+        Execute optimization workflow
+        """
 
         print("Starting optimization workflow...")
+        pass
 
     def run_live_trading(self):
+        """
+        Execute live trading workflow
+        """
 
         print("Starting live trading workflow...")
+        pass
