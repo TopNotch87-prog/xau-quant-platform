@@ -10,6 +10,7 @@ from agents.optimization_agent import OptimizationAgent
 from agents.risk_agent import RiskAgent
 from agents.montecarlo_agent import MonteCarloAgent
 from agents.reporting_agent import ReportingAgent
+from agents.html_report_agent import HtmlReportAgent
 
 
 class MasterController:
@@ -31,6 +32,7 @@ class MasterController:
         self.risk_agent = RiskAgent()
         self.montecarlo_agent = MonteCarloAgent()
         self.reporting_agent = ReportingAgent()
+        self.html_report_agent = HtmlReportAgent()
 
     def run_backtest(self):
         """
@@ -144,6 +146,12 @@ class MasterController:
         print(report)
 
         print("\nBacktest workflow completed!")
+
+        # Generate HTML dashboard and open in browser
+        html_path = self.html_report_agent.generate(report)
+        print(f"\n📊 Dashboard saved to: {html_path}")
+        import webbrowser
+        webbrowser.open(f"file://{html_path}")
 
         return report
 
