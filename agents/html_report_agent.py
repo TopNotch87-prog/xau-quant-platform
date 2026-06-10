@@ -1,13 +1,12 @@
 """
 HtmlReportAgent 2.0 – Professional XAU Quant Dashboard
-- Real equity curve (based on simulated trades or price)
+- Real equity curve
 - Trade log from CSV with win rate & profit factor
-- Real Monte Carlo histogram (using your simulation paths)
-- Regime timeline (bar chart)
+- Real Monte Carlo histogram
+- Regime timeline
 - Walk-forward optimization table
 - Signal confidence gauge
-- Signal history (last 20 trades)
-- Mobile responsive, gold theme
+- Mobile responsive
 """
 
 import json
@@ -93,17 +92,16 @@ class HtmlReportAgent:
         # ---- TRADE LOG & STATS (from data/trades.csv) ----
         trade_file = Path("data/trades.csv")
         trade_rows_html = ""
-        win_rate = 0
-        profit_factor = 0
+        win_rate = 0.0
+        profit_factor = 0.0
         total_trades = 0
-        avg_rr = 0
+        avg_rr = 0.0
 
         if trade_file.exists():
             try:
                 trades_df = pd.read_csv(trade_file)
                 total_trades = len(trades_df)
                 if total_trades > 0:
-                    # simple win rate: assume positive pnl if available, else use confidence > 0.5
                     if "pnl" in trades_df.columns:
                         wins = (trades_df["pnl"] > 0).sum()
                         win_rate = wins / total_trades if total_trades else 0
@@ -114,7 +112,6 @@ class HtmlReportAgent:
                         # fallback: use confidence as proxy
                         if "confidence" in trades_df.columns:
                             win_rate = (trades_df["confidence"] > 0.5).mean()
-                    # average risk-reward (if exit and entry available)
                     if "entry_price" in trades_df.columns and "exit_price" in trades_df.columns:
                         trades_df["rr"] = (trades_df["exit_price"] - trades_df["entry_price"]) / trades_df["entry_price"].abs()
                         avg_rr = trades_df["rr"].mean()
@@ -127,9 +124,16 @@ class HtmlReportAgent:
                     conf = row.get("confidence", "")
                     reg = row.get("regime", "")
                     entry = row.get("entry_price", "")
-                    # optional exit/pnl
                     exit_price = row.get("exit_price", "")
                     pnl = row.get("pnl", "")
+                    # Ensure pnl is a number for colouring
+                    try:
+                        pnl_float = float(pnl) if pnl not in (None, "", "nan") else None
+                    except:
+                        pnl_float = None
+                    pnl_class = ""
+                    if pnl_float is not None:
+                        pnl_class = "pos" if pnl_float > 0 else "neg" if pnl_float < 0 else ""
                     trade_rows_html += f"""
                     <tr>
                         <td>{ts}</td>
@@ -138,13 +142,19 @@ class HtmlReportAgent:
                         <td>{reg}</td>
                         <td>${entry}</td>
                         <td>${exit_price}</td>
-                        <td class="{'pos' if isinstance(pnl, (int,float)) and pnl>0 else 'neg' if isinstance(pnl,(int,float)) and pnl<0 else ''}">{pnl}</td>
+                        <td class="{pnl_class}">{pnl}</td>
                     </tr>
                     """
             except Exception as e:
                 trade_rows_html = f'<tr><td colspan="7">Error loading trades: {e}</td></tr>'
         else:
             trade_rows_html = '<tr><td colspan="7">No trade log found. Run backtest first.</td></tr>'
+
+        # Prepare display strings for profit factor (handle infinity)
+        if profit_factor == float('inf'):
+            profit_factor_display = "∞"
+        else:
+            profit_factor_display = f"{profit_factor:.2f}"
 
         # ---- OPTIMIZATION TABLE ----
         opt_table_rows = ""
@@ -343,7 +353,7 @@ class HtmlReportAgent:
         <div class="card">
             <h2>Trade Stats</h2>
             <div>Total Trades: {total_trades}</div>
-            <div>Profit Factor: {profit_factor:.2f if profit_factor != float('inf') else '∞'}</div>
+            <div>Profit Factor: {profit_factor_display}</div>
             <div>Avg R:R: {avg_rr:.2f}</div>
         </div>
         <div class="card">
