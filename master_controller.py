@@ -95,14 +95,16 @@ class MasterController:
         # Step 4: Walk Forward Optimization
         # --------------------------------------------------
         print("Step 4: Optimizing strategy parameters...")
-
-        optimized_params = (
+optimized_params = (
             self.optimization_agent.walk_forward_optimization(
                 data,
                 self.strategy_agent,
                 window_size=252
             )
         )
+
+
+        
 if optimized_params:
 
     latest = optimized_params[-1]
