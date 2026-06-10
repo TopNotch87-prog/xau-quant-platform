@@ -83,12 +83,13 @@ class MasterController:
         print("\n================ SIGNALS ================")
         print(signals)
         if signals["confidence"] < 0.60:
-
-    signals["signal"] = "HOLD"
+            signals["signal"] = "HOLD"
 
     signals["rationale"] = (
         "Confidence below threshold"
     )
+
+    
 
         # --------------------------------------------------
         # Step 4: Walk Forward Optimization
