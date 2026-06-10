@@ -1,207 +1,280 @@
-"""
-Strategy Agent
-Selects and executes trading strategy based on market regime,
-returning actionable BUY / SELL / HOLD signals with levels.
-"""
 import numpy as np
+
+from strategies.volatility_expansion import VolatilityExpansion
 
 
 class StrategyAgent:
 
-    # ------------------------------------------------------------------ #
-    #  Public API                                                          #
-    # ------------------------------------------------------------------ #
+    def __init__(self):
+
+        self.vol_strategy = VolatilityExpansion()
+
+        self.weights = {
+            "HIGH_VOL": {
+                "breakout": 0.40,
+                "trend": 0.20,
+                "mean_reversion": 0.10,
+                "volatility": 0.30
+            },
+
+            "TREND_UP": {
+                "breakout": 0.20,
+                "trend": 0.50,
+                "mean_reversion": 0.10,
+                "volatility": 0.20
+            },
+
+            "TREND_DOWN": {
+                "breakout": 0.20,
+                "trend": 0.50,
+                "mean_reversion": 0.10,
+                "volatility": 0.20
+            },
+
+            "RANGE": {
+                "breakout": 0.10,
+                "trend": 0.20,
+                "mean_reversion": 0.50,
+                "volatility": 0.20
+            },
+
+            "UNKNOWN": {
+                "breakout": 0.25,
+                "trend": 0.25,
+                "mean_reversion": 0.25,
+                "volatility": 0.25
+            }
+        }
 
     def generate_signals(self, data, regime):
-        """
-        Generate a trade recommendation for the current bar.
 
-        Returns a dict with:
-            strategy      – strategy name
-            regime        – detected regime
-            signal        – BUY | SELL | HOLD
-            entry_price   – suggested entry (last close)
-            stop_loss     – price to exit if wrong
-            take_profit   – price target
-            rationale     – one-line explanation
-            data          – full OHLCV + regime DataFrame
-        """
+        breakout = self._breakout_vote(data)
 
-        mapping = {
-            "TREND_UP":   "trend_following",
-            "TREND_DOWN": "trend_following",
-            "RANGE":      "mean_reversion",
-            "HIGH_VOL":   "breakout",
-            "UNKNOWN":    "trend_following",
-        }
+        trend = self._trend_vote(data)
 
-        strategy_name = mapping.get(str(regime), "trend_following")
+        mean_rev = self._mean_reversion_vote(data)
 
-        if strategy_name == "breakout":
-            signal_info = self._breakout_signal(data)
-        elif strategy_name == "mean_reversion":
-            signal_info = self._mean_reversion_signal(data)
+        volatility = self.vol_strategy.signal(data)
+
+        w = self.weights.get(
+            str(regime),
+            self.weights["UNKNOWN"]
+        )
+
+        score = (
+            breakout * w["breakout"]
+            + trend * w["trend"]
+            + mean_rev * w["mean_reversion"]
+            + volatility * w["volatility"]
+        )
+
+        if score > 0.25:
+            final_signal = "BUY"
+        elif score < -0.25:
+            final_signal = "SELL"
         else:
-            signal_info = self._trend_following_signal(data)
+            final_signal = "HOLD"
+
+        close = float(data["Close"].iloc[-1])
+
+        atr = float(
+            self._atr(data).iloc[-1]
+        )
+
+        confidence = round(
+            min(abs(score), 1.0),
+            2
+        )
 
         return {
-            "strategy":    strategy_name,
-            "regime":      regime,
-            "signal":      signal_info["signal"],
-            "entry_price": signal_info["entry_price"],
-            "stop_loss":   signal_info["stop_loss"],
-            "take_profit": signal_info["take_profit"],
-            "rationale":   signal_info["rationale"],
-            "data":        data,
+
+            "signal": final_signal,
+
+            "confidence": confidence,
+
+            "weighted_score": round(score, 3),
+
+            "regime": regime,
+
+            "entry_price": round(close, 2),
+
+            "stop_loss": round(
+                close - 1.5 * atr,
+                2
+            ) if final_signal == "BUY"
+            else round(
+                close + 1.5 * atr,
+                2
+            ),
+
+            "take_profit": round(
+                close + 3 * atr,
+                2
+            ) if final_signal == "BUY"
+            else round(
+                close - 3 * atr,
+                2
+            ),
+
+            "votes": {
+
+                "breakout":
+                    self._decode_vote(
+                        breakout
+                    ),
+
+                "trend":
+                    self._decode_vote(
+                        trend
+                    ),
+
+                "mean_reversion":
+                    self._decode_vote(
+                        mean_rev
+                    ),
+
+                "volatility":
+                    self._decode_vote(
+                        volatility
+                    )
+            }
         }
 
-    # ------------------------------------------------------------------ #
-    #  Strategy implementations                                           #
-    # ------------------------------------------------------------------ #
+    def _decode_vote(self, vote):
 
-    def _breakout_signal(self, data, period=20):
-        """
-        Donchian Channel breakout.
-        BUY  when close > highest high of the last `period` bars.
-        SELL when close < lowest  low  of the last `period` bars.
-        """
-        close  = data["Close"]
-        high   = data["High"]
-        low    = data["Low"]
+        if vote > 0:
+            return "BUY"
 
-        donchian_high = high.rolling(period).max().shift(1)
-        donchian_low  = low.rolling(period).min().shift(1)
-        atr           = self._atr(data)
+        if vote < 0:
+            return "SELL"
 
-        last_close = float(close.iloc[-1])
-        d_high     = float(donchian_high.iloc[-1])
-        d_low      = float(donchian_low.iloc[-1])
-        last_atr   = float(atr.iloc[-1])
+        return "HOLD"
 
-        if last_close > d_high:
-            return {
-                "signal":      "BUY",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close - 1.5 * last_atr, 2),
-                "take_profit": round(last_close + 3.0 * last_atr, 2),
-                "rationale":   f"Price {last_close:.2f} broke above {period}-bar high {d_high:.2f}",
-            }
-        elif last_close < d_low:
-            return {
-                "signal":      "SELL",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close + 1.5 * last_atr, 2),
-                "take_profit": round(last_close - 3.0 * last_atr, 2),
-                "rationale":   f"Price {last_close:.2f} broke below {period}-bar low {d_low:.2f}",
-            }
-        else:
-            return {
-                "signal":      "HOLD",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(d_low, 2),
-                "take_profit": round(d_high, 2),
-                "rationale":   f"Inside channel ({d_low:.2f} – {d_high:.2f}), awaiting breakout",
-            }
+    def _breakout_vote(
+        self,
+        data,
+        period=20
+    ):
 
-    def _trend_following_signal(self, data, fast=45, slow=70):
-        """
-        MA crossover.
-        BUY  when fast MA > slow MA.
-        SELL when fast MA < slow MA.
-        """
-        close   = data["Close"]
-        fast_ma = close.rolling(fast).mean()
-        slow_ma = close.rolling(slow).mean()
-        atr     = self._atr(data)
+        high = (
+            data["High"]
+            .rolling(period)
+            .max()
+            .shift(1)
+        )
 
-        last_close   = float(close.iloc[-1])
-        last_fast    = float(fast_ma.iloc[-1])
-        last_slow    = float(slow_ma.iloc[-1])
-        last_atr     = float(atr.iloc[-1])
+        low = (
+            data["Low"]
+            .rolling(period)
+            .min()
+            .shift(1)
+        )
 
-        if last_fast > last_slow:
-            return {
-                "signal":      "BUY",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close - 1.5 * last_atr, 2),
-                "take_profit": round(last_close + 3.0 * last_atr, 2),
-                "rationale":   f"MA{fast} {last_fast:.2f} > MA{slow} {last_slow:.2f} (bullish trend)",
-            }
-        elif last_fast < last_slow:
-            return {
-                "signal":      "SELL",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close + 1.5 * last_atr, 2),
-                "take_profit": round(last_close - 3.0 * last_atr, 2),
-                "rationale":   f"MA{fast} {last_fast:.2f} < MA{slow} {last_slow:.2f} (bearish trend)",
-            }
-        else:
-            return {
-                "signal":      "HOLD",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close - last_atr, 2),
-                "take_profit": round(last_close + last_atr, 2),
-                "rationale":   "MAs equal — no clear trend direction",
-            }
+        close = data["Close"].iloc[-1]
 
-    def _mean_reversion_signal(self, data, period=14):
-        """
-        RSI mean reversion.
-        BUY  when RSI < 35 (oversold).
-        SELL when RSI > 65 (overbought).
-        """
-        close  = data["Close"]
-        rsi    = self._rsi(close, period)
-        atr    = self._atr(data)
-        ma50   = close.rolling(50).mean()
+        if close > high.iloc[-1]:
+            return 1
 
-        last_close = float(close.iloc[-1])
-        last_rsi   = float(rsi.iloc[-1])
-        last_atr   = float(atr.iloc[-1])
-        last_ma50  = float(ma50.iloc[-1])
+        if close < low.iloc[-1]:
+            return -1
 
-        if last_rsi < 35:
-            return {
-                "signal":      "BUY",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close - 1.5 * last_atr, 2),
-                "take_profit": round(last_ma50, 2),
-                "rationale":   f"RSI({period}) {last_rsi:.1f} — oversold, reversion toward MA50 {last_ma50:.2f}",
-            }
-        elif last_rsi > 65:
-            return {
-                "signal":      "SELL",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close + 1.5 * last_atr, 2),
-                "take_profit": round(last_ma50, 2),
-                "rationale":   f"RSI({period}) {last_rsi:.1f} — overbought, reversion toward MA50 {last_ma50:.2f}",
-            }
-        else:
-            return {
-                "signal":      "HOLD",
-                "entry_price": round(last_close, 2),
-                "stop_loss":   round(last_close - last_atr, 2),
-                "take_profit": round(last_close + last_atr, 2),
-                "rationale":   f"RSI({period}) {last_rsi:.1f} — neutral zone, no signal",
-            }
+        return 0
 
-    # ------------------------------------------------------------------ #
-    #  Helpers                                                             #
-    # ------------------------------------------------------------------ #
+    def _trend_vote(
+        self,
+        data,
+        fast=20,
+        slow=50
+    ):
 
-    def _atr(self, data, period=14):
-        high  = data["High"]
-        low   = data["Low"]
+        fast_ma = (
+            data["Close"]
+            .rolling(fast)
+            .mean()
+        )
+
+        slow_ma = (
+            data["Close"]
+            .rolling(slow)
+            .mean()
+        )
+
+        if fast_ma.iloc[-1] > slow_ma.iloc[-1]:
+            return 1
+
+        if fast_ma.iloc[-1] < slow_ma.iloc[-1]:
+            return -1
+
+        return 0
+
+    def _mean_reversion_vote(
+        self,
+        data
+    ):
+
+        rsi = self._rsi(
+            data["Close"]
+        )
+
+        latest = rsi.iloc[-1]
+
+        if latest < 30:
+            return 1
+
+        if latest > 70:
+            return -1
+
+        return 0
+
+    def _atr(
+        self,
+        data,
+        period=14
+    ):
+
+        high = data["High"]
+
+        low = data["Low"]
+
         close = data["Close"]
-        prev_close = close.shift(1)
-        tr = np.maximum(high - low,
-             np.maximum(abs(high - prev_close),
-                        abs(low  - prev_close)))
+
+        prev = close.shift(1)
+
+        tr = np.maximum(
+            high - low,
+            np.maximum(
+                abs(high - prev),
+                abs(low - prev)
+            )
+        )
+
         return tr.rolling(period).mean()
 
-    def _rsi(self, close, period=14):
-        delta  = close.diff()
-        gain   = delta.clip(lower=0).rolling(period).mean()
-        loss   = (-delta.clip(upper=0)).rolling(period).mean()
-        rs     = gain / loss.replace(0, np.nan)
-        return 100 - (100 / (1 + rs))
+    def _rsi(
+        self,
+        close,
+        period=14
+    ):
+
+        delta = close.diff()
+
+        gain = (
+            delta.clip(lower=0)
+            .rolling(period)
+            .mean()
+        )
+
+        loss = (
+            -delta.clip(upper=0)
+            .rolling(period)
+            .mean()
+        )
+
+        rs = gain / loss.replace(
+            0,
+            np.nan
+        )
+
+        return 100 - (
+            100 / (1 + rs)
+        )
