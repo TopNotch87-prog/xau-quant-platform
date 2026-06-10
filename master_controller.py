@@ -11,7 +11,7 @@ from agents.risk_agent import RiskAgent
 from agents.montecarlo_agent import MonteCarloAgent
 from agents.reporting_agent import ReportingAgent
 from agents.html_report_agent import HtmlReportAgent
-
+from utils.trade_logger import TradeLogger
 
 class MasterController:
 
@@ -33,6 +33,7 @@ class MasterController:
         self.montecarlo_agent = MonteCarloAgent()
         self.reporting_agent = ReportingAgent()
         self.html_report_agent = HtmlReportAgent()
+        self.trade_logger = TradeLogger()
 
     def run_backtest(self):
         """
@@ -77,9 +78,17 @@ class MasterController:
             data,
             current_regime
         )
+        self.trade_logger.log(signals)
 
         print("\n================ SIGNALS ================")
         print(signals)
+        if signals["confidence"] < 0.60:
+
+    signals["signal"] = "HOLD"
+
+    signals["rationale"] = (
+        "Confidence below threshold"
+    )
 
         # --------------------------------------------------
         # Step 4: Walk Forward Optimization
@@ -93,6 +102,23 @@ class MasterController:
                 window_size=252
             )
         )
+if optimized_params:
+
+    latest = optimized_params[-1]
+
+    if latest["best_params"]:
+
+        fast, slow = latest["best_params"]
+
+        self.strategy_agent.fast_ma = fast
+        self.strategy_agent.slow_ma = slow
+
+        print(
+            f"Using optimized parameters "
+            f"FAST={fast} "
+            f"SLOW={slow}"
+        )
+
 
         print("\n========== OPTIMIZED PARAMETERS ==========")
         print(optimized_params)
