@@ -27,7 +27,7 @@ class RegimeAgent:
         for i in range(len(df)):
 
             if i < 200:
-                regimes.append("UNKNOWN")
+                regimes.append("RANGE")   # was "UNKNOWN"
                 continue
 
             close = df["Close"].iloc[i]
