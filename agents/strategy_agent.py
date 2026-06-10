@@ -15,7 +15,7 @@ _WEIGHTS = {
     "UNKNOWN":    {"breakout": 0.25, "trend": 0.25, "mean_rev": 0.25, "vol_exp": 0.25},
 }
 
-_THRESHOLD = 0.15   # weighted score must exceed this to call BUY or SELL
+_THRESHOLD = 0.10   # weighted score must exceed this to call BUY or SELL
 
 
 class StrategyAgent:
