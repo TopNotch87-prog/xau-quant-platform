@@ -72,7 +72,13 @@ class StrategyAgent:
             take_profit = round(close + atr, 2)
 
         # ── confidence = how far score is from zero, capped at 1 ──────
-        confidence = round(min(abs(score) / _THRESHOLD, 1.0), 2)
+        confidence = round(abs(score),2)
+        if abs(score) < 0.25:
+            final_signal = "HOLD"
+        elif score > 0:
+            final_signal = "BUY"
+        else:
+            final_signal = "SELL"
 
         # ── dominant strategy (highest weighted contribution) ─────────
         dominant = max(votes, key=lambda k: abs(votes[k]) * weights[k])
