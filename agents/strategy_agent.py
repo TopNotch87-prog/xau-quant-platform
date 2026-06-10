@@ -8,6 +8,8 @@ class StrategyAgent:
     def __init__(self):
 
         self.vol_strategy = VolatilityExpansion()
+        self.fast_ma
+        self.slow_ma
 
         self.weights = {
             "HIGH_VOL": {
