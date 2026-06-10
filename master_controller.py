@@ -69,47 +69,43 @@ class MasterController:
 
         print(f"Current Regime: {current_regime}")
 
-        # --------------------------------------------------
-        # Step 3: Generate Signals
-        # --------------------------------------------------
-        print("Step 3: Generating trading signals...")
+   # --------------------------------------------------
+# Step 3: Generate Signals
+# --------------------------------------------------
+print("Step 3: Generating trading signals...")
 
-        signals = self.strategy_agent.generate_signals(
-            data,
-            current_regime
-        )
-        self.trade_logger.log(signals)
+signals = self.strategy_agent.generate_signals(
+    data,
+    current_regime
+)
 
-        print("\n================ SIGNALS ================")
-        print(signals)
-        if signals["confidence"] < 0.60:
-            signals["signal"] = "HOLD"
+self.trade_logger.log(signals)
 
-    signals["rationale"] = (
-        "Confidence below threshold"
-    )
+if signals.get("confidence", 0) < 0.60:
+    signals["signal"] = "HOLD"
+    signals["rationale"] = "Confidence below threshold"
 
-    
+print("\n================ SIGNALS ================")
+print(signals)
 
-        # --------------------------------------------------
-        # Step 4: Walk Forward Optimization
-        # --------------------------------------------------
-        print("Step 4: Optimizing strategy parameters...")
+# --------------------------------------------------
+# Step 4: Walk Forward Optimization
+# --------------------------------------------------
+print("Step 4: Optimizing strategy parameters...")
+
 optimized_params = (
-            self.optimization_agent.walk_forward_optimization(
-                data,
-                self.strategy_agent,
-                window_size=252
-            )
-        )
+    self.optimization_agent.walk_forward_optimization(
+        data,
+        self.strategy_agent,
+        window_size=252
+    )
+)
 
-
-        
 if optimized_params:
 
     latest = optimized_params[-1]
 
-    if latest["best_params"]:
+    if latest.get("best_params"):
 
         fast, slow = latest["best_params"]
 
@@ -122,9 +118,8 @@ if optimized_params:
             f"SLOW={slow}"
         )
 
-
-        print("\n========== OPTIMIZED PARAMETERS ==========")
-        print(optimized_params)
+print("\n========== OPTIMIZED PARAMETERS ==========")
+print(optimized_params)
 
         # --------------------------------------------------
         # Step 5: Risk Assessment
