@@ -1,80 +1,94 @@
 """
 Data Collection Agent
-Handles market data retrieval and preprocessing for XAUUSD
+Handles real market data retrieval and preprocessing for XAUUSD / GC=F
 """
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+
+
 class DataAgent:
-    def __init__(self):
-        """Initialize the data collection agent"""
-        pass
-    
-    def fetch_market_data(self, symbol: str, start_date: str = None, end_date: str = None):
-        """Fetch historical market data"""
-        # For now, generate synthetic market data for XAUUSD
-        # In production, this would fetch from yfinance or another data provider
-        
-        # Default to last 252 days of trading data (1 year)
+
+    def fetch_market_data(
+        self,
+        symbol: str = "GC=F",
+        start_date: str = None,
+        end_date: str = None
+    ):
+        """
+        Fetch real OHLCV data from Yahoo Finance.
+
+        Args:
+            symbol:     Ticker symbol. GC=F = Gold Futures (front month),
+                        XAUUSD=X = Spot gold (less reliable on yfinance)
+            start_date: 'YYYY-MM-DD' string or None (defaults to 1 year ago)
+            end_date:   'YYYY-MM-DD' string or None (defaults to today)
+
+        Returns:
+            DataFrame with Open/High/Low/Close/Volume columns indexed by Date
+        """
+
+        if not YFINANCE_AVAILABLE:
+            raise ImportError(
+                "yfinance is not installed. Run: pip install yfinance"
+            )
+
+        # ── date range ────────────────────────────────────────────────
         if end_date is None:
-            end_date = datetime.now()
+            end_dt = datetime.now()
         else:
-            end_date = datetime.strptime(end_date, '%Y-%m-%d')
-        
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+
         if start_date is None:
-            start_date = end_date - timedelta(days=365)
+            start_dt = end_dt - timedelta(days=365)
         else:
-            start_date = datetime.strptime(start_date, '%Y-%m-%d')
-        
-        # Generate date range (business days only)
-        dates = pd.bdate_range(start=start_date, end=end_date)
-        
-        # Generate realistic OHLCV data
-        np.random.seed(42)  # For reproducibility
-        n_days = len(dates)
-        
-        # Start price around gold's typical range
-        price = 2000
-        returns = np.random.normal(0.0005, 0.02, n_days)
-        prices = price * np.exp(np.cumsum(returns))
-        
-        df = pd.DataFrame({
-            'Date': dates,
-            'Open': prices + np.random.normal(0, 10, n_days),
-            'High': prices + np.abs(np.random.normal(20, 10, n_days)),
-            'Low': prices - np.abs(np.random.normal(20, 10, n_days)),
-            'Close': prices,
-            'Volume': np.random.randint(1000000, 5000000, n_days)
-        })
-        
-        df.set_index('Date', inplace=True)
-        
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+
+        start_str = start_dt.strftime("%Y-%m-%d")
+        end_str   = end_dt.strftime("%Y-%m-%d")
+
+        # ── fetch ─────────────────────────────────────────────────────
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(start=start_str, end=end_str, auto_adjust=True)
+
+        if df.empty:
+            raise ValueError(
+                f"No data returned for {symbol} "
+                f"({start_str} → {end_str}). "
+                "Check the symbol and your internet connection."
+            )
+
+        # ── normalise columns ─────────────────────────────────────────
+        df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+        df.index = pd.to_datetime(df.index).tz_localize(None)
+        df.index.name = "Date"
+
+        # drop any rows where Close is NaN or zero
+        df = df[df["Close"] > 0].dropna(subset=["Close"])
+
         return df
-    
+
     def preprocess_data(self, data):
-        """Clean and preprocess market data"""
-        # Remove any NaN values
+        """Clean and preprocess market data."""
         data = data.dropna()
-        
-        # Ensure numeric types
-        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        for col in ["Open", "High", "Low", "Close", "Volume"]:
             if col in data.columns:
-                data[col] = pd.to_numeric(data[col], errors='coerce')
-        
+                data[col] = pd.to_numeric(data[col], errors="coerce")
         return data
-    
+
     def validate_data(self, data):
-        """Validate data integrity"""
+        """Validate data integrity."""
         if data is None or data.empty:
             return False
-        
-        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        if not all(col in data.columns for col in required_columns):
+        required = ["Open", "High", "Low", "Close", "Volume"]
+        if not all(c in data.columns for c in required):
             return False
-        
-        # Check for any remaining NaN values
         if data.isnull().any().any():
             return False
-        
         return True
