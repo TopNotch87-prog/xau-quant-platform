@@ -1,6 +1,6 @@
 """
 Regime Detection Agent
-Detects market regime (trending, range, high volatility)
+Advanced market regime detection
 """
 
 import pandas as pd
@@ -10,10 +10,6 @@ import numpy as np
 class RegimeAgent:
 
     def detect_regime(self, df):
-        """
-        Detect market regime based on moving averages and volatility.
-        Returns the dataframe with a 'regime' column added.
-        """
 
         df = df.copy()
 
@@ -21,33 +17,51 @@ class RegimeAgent:
         df["ma200"] = df["Close"].rolling(200).mean()
 
         returns = df["Close"].pct_change()
-        volatility = returns.rolling(50).std()
 
-        vol_threshold = volatility.quantile(0.75)
+        df["volatility"] = returns.rolling(20).std()
 
-        conditions = []
+        vol_threshold = df["volatility"].quantile(0.75)
+
+        regimes = []
 
         for i in range(len(df)):
 
-            current_vol = volatility.iloc[i]
+            if i < 200:
+                regimes.append("UNKNOWN")
+                continue
+
+            close = df["Close"].iloc[i]
+
             ma50 = df["ma50"].iloc[i]
             ma200 = df["ma200"].iloc[i]
 
-            if pd.isna(current_vol) or pd.isna(ma50) or pd.isna(ma200):
-                conditions.append("UNKNOWN")
+            current_vol = df["volatility"].iloc[i]
 
-            elif current_vol > vol_threshold:
-                conditions.append("HIGH_VOL")
+            ma50_slope = (
+                df["ma50"].iloc[i]
+                - df["ma50"].iloc[max(0, i - 10)]
+            )
 
-            elif ma50 > ma200:
-                conditions.append("TREND_UP")
+            if current_vol > vol_threshold:
+                regimes.append("HIGH_VOL")
 
-            elif ma50 < ma200:
-                conditions.append("TREND_DOWN")
+            elif (
+                close > ma50
+                and ma50 > ma200
+                and ma50_slope > 0
+            ):
+                regimes.append("TREND_UP")
+
+            elif (
+                close < ma50
+                and ma50 < ma200
+                and ma50_slope < 0
+            ):
+                regimes.append("TREND_DOWN")
 
             else:
-                conditions.append("RANGE")
+                regimes.append("RANGE")
 
-        df["regime"] = conditions
+        df["regime"] = regimes
 
         return df
